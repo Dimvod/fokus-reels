@@ -306,7 +306,49 @@ $queue[$pick]['published_at'] = date('c');
 unset($queue[$pick]['error'], $queue[$pick]['creation_id']);
 ap_json_write($queueFile, $queue);
 ap_log('ОПУБЛИКОВАНО: ' . $item['file'] . ' media_id=' . $j['id']);
+
+// 4. дублируем тот же ролик в сторис (не критично: ошибка сторис не влияет на Reels)
+$storyNote = '';
+if (!isset($cfg['duplicate_to_story']) || $cfg['duplicate_to_story']) {
+    $sid = '';
+    list($sc, $sj, $sraw) = ap_http('POST', $cfg['ig_api'] . '/' . rawurlencode($igId) . '/media', $auth,
+        http_build_query(array('media_type' => 'STORIES', 'video_url' => $videoUrl)));
+    if ($sc === 200 && is_array($sj) && !empty($sj['id'])) {
+        $sCreation = $sj['id'];
+        $sReady = false;
+        for ($n = 0; $n < 18; $n++) {
+            list($c3, $j3) = ap_http('GET', $cfg['ig_api'] . '/' . rawurlencode($sCreation) . '?fields=status_code,status', $auth);
+            $st3 = is_array($j3) && isset($j3['status_code']) ? $j3['status_code'] : '';
+            if ($st3 === 'FINISHED') { $sReady = true; break; }
+            if ($st3 === 'ERROR' || $st3 === 'EXPIRED') { break; }
+            sleep(10);
+        }
+        if ($sReady) {
+            list($c4, $j4, $raw4) = ap_http('POST', $cfg['ig_api'] . '/' . rawurlencode($igId) . '/media_publish', $auth,
+                http_build_query(array('creation_id' => $sCreation)));
+            if ($c4 === 200 && is_array($j4) && !empty($j4['id'])) {
+                $sid = $j4['id'];
+            } else {
+                $queue[$pick]['story_error'] = 'publish: http=' . $c4 . ' ' . mb_substr($raw4, 0, 200, 'UTF-8');
+            }
+        } else {
+            $queue[$pick]['story_error'] = 'сторис не обработана Instagram: ' . (isset($j3['status']) ? $j3['status'] : 'таймаут');
+        }
+    } else {
+        $queue[$pick]['story_error'] = 'create: http=' . $sc . ' ' . mb_substr($sraw, 0, 200, 'UTF-8');
+    }
+    if ($sid !== '') {
+        $queue[$pick]['story_id'] = $sid;
+        unset($queue[$pick]['story_error']);
+        $storyNote = ' + сторис';
+        ap_log('СТОРИС опубликована: story_id=' . $sid);
+    } else {
+        $storyNote = ' (сторис не вышла: ' . $queue[$pick]['story_error'] . ')';
+        ap_log('сторис: ' . $queue[$pick]['story_error']);
+    }
+    ap_json_write($queueFile, $queue);
+}
 if (!empty($cfg['notify_max'])) {
-    ap_notify_max('✅ Instagram: опубликован Reels «' . $title . '» (' . date('d.m.Y H:i') . ' Томск)');
+    ap_notify_max('✅ Instagram: опубликован Reels «' . $title . '»' . $storyNote . ' (' . date('d.m.Y H:i') . ' Томск)');
 }
 exit(0);
