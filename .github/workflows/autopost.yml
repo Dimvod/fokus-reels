@@ -1,4 +1,4 @@
-﻿name: Instagram autopost
+name: Instagram autopost
 
 on:
   schedule:
@@ -37,7 +37,7 @@ jobs:
           IG_USER_ID: '17841404120140217'
           IG_API: 'https://graph.facebook.com/v21.0'
           VIDEO_BASE_URL: 'https://dimvod.github.io/fokus-reels'
-        run: php autopost/publish.php
+        run: php autopost/publish.php ${{ github.event_name == 'workflow_dispatch' && '--check' || '' }}
 
       - name: Save queue status
         if: steps.secret.outputs.has == 'true'
