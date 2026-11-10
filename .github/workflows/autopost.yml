@@ -1,0 +1,51 @@
+﻿name: Instagram autopost
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: autopost
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that the token secret is set
+        id: secret
+        env:
+          T: ${{ secrets.IG_TOKEN }}
+        run: |
+          if [ -z "$T" ]; then
+            echo "has=false" >> "$GITHUB_OUTPUT"
+            echo "Secret IG_TOKEN is not set yet, nothing to do."
+          else
+            echo "has=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish due reel
+        if: steps.secret.outputs.has == 'true'
+        env:
+          IG_TOKEN: ${{ secrets.IG_TOKEN }}
+          IG_USER_ID: '17841404120140217'
+          IG_API: 'https://graph.facebook.com/v21.0'
+          VIDEO_BASE_URL: 'https://dimvod.github.io/fokus-reels'
+        run: php autopost/publish.php
+
+      - name: Save queue status
+        if: steps.secret.outputs.has == 'true'
+        run: |
+          if ! git diff --quiet autopost/queue.json; then
+            git config user.name "autopost-bot"
+            git config user.email "autopost-bot@users.noreply.github.com"
+            git add autopost/queue.json
+            git commit -m "autopost: update queue status"
+            git push
+          fi
