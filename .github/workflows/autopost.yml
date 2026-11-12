@@ -2,7 +2,8 @@ name: Instagram autopost
 
 on:
   schedule:
-    - cron: '*/10 * * * *'
+    - cron: '3,13,23,33,43,53 * * * *'
+    - cron: '8,18,28,38,48,58 * * * *'
   workflow_dispatch:
     inputs:
       check_only:
